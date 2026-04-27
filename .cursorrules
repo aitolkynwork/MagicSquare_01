@@ -1,0 +1,150 @@
+################################################################################
+project:
+  name: MagicSquare
+  summary: >
+    Python project for magic-square logic and related features. Code is organized
+    using ECB (Entity-Control-Boundary): domain rules and data in entity,
+    orchestration and use cases in control, and I/O surfaces in boundary.
+  language: Python
+  goals:
+    - Implement and validate magic-square algorithms and domain rules with high test coverage.
+    - Keep ECB boundaries clear so UI/API/CLI do not embed domain logic.
+################################################################################
+code_style:
+  python_version: "3.10+"
+  style_guide: strict PEP8
+  type_hints: required on all function parameters and return values
+  docstring: Google style, required on all public methods
+  max_line_length: 88 (Black)
+################################################################################
+architecture:
+  pattern: ECB (Entity-Control-Boundary)
+  layers:
+    boundary:
+      role: external I/O
+      contains:
+        - UI (e.g. desktop or web adapters)
+        - HTTP/API endpoints and request/response mapping
+        - CLI entrypoints and argument parsing
+      rules: >
+        Boundary may call control; must not contain business rules or persist domain
+        invariants. Map external formats to/from DTOs or primitive inputs for control.
+    control:
+      role: business logic and application use cases
+      contains:
+        - Use cases and workflows
+        - Coordination between entities
+        - Transaction or session boundaries at the application level
+      rules: >
+        Control orchestrates entities and boundary-facing operations. It encodes
+        what the application does, not how raw I/O is rendered.
+    entity:
+      role: domain data and rules
+      contains:
+        - Core magic-square models and validation rules
+        - Pure domain calculations independent of I/O
+      rules: >
+        Entity has no imports from boundary. Prefer no I/O, no framework types, and
+        minimal coupling to control-specific DTOs where possible.
+  dependency_direction: >
+    boundary → control → entity. Entity depends on nothing inward from the domain.
+    Control depends on entity only (not boundary types for core logic). Boundary
+    depends on control (and optionally thin DTOs) to invoke use cases. Never import
+    boundary from entity or control, and never import control from entity.
+################################################################################
+tdd_rules:
+  phases:
+    - id: red
+      description: >
+        Write a single small failing test that expresses the next desired behavior
+        or bugfix. Run the test suite and confirm the new test fails for the right reason.
+      rules:
+        - Write the test before production code that satisfies it.
+        - Keep the change set minimal—one behavior or one bug at a time.
+        - Use descriptive test names and AAA structure.
+        - Assert on observable outcomes, not implementation details.
+      must_not:
+        - Add production code that makes the test pass before the test exists and fails.
+        - Skip running tests after adding a new test.
+        - Write large batches of tests or code without a failing run in between.
+    - id: green
+      description: >
+        Implement the smallest amount of production code needed to make the failing
+        test pass. Prefer simple, correct solutions over clever abstractions.
+      rules:
+        - Change only what is required for the current failing test.
+        - Run tests after each meaningful edit until green.
+        - Keep entity logic pure where the behavior is domain-only.
+      must_not:
+        - Refactor or broaden scope while the test is still red (unless fixing a typo).
+        - Add speculative features or "might need later" code.
+        - Silence failures with mocks or skips instead of real behavior.
+    - id: refactor
+      description: >
+        With all tests green, improve names, structure, and duplication without
+        changing behavior. Run tests frequently to guard behavior.
+      rules:
+        - Run the full relevant test suite after each refactor step.
+        - Move logic toward the correct ECB layer when structure improves clarity.
+        - Apply style and type-hint rules while refactoring.
+      must_not:
+        - Change public behavior or test expectations without a new red phase.
+        - Introduce cross-layer imports that violate dependency direction.
+        - Delete or weaken tests to make refactor "easier."
+################################################################################
+testing:
+  framework: pytest
+  pattern: AAA (Arrange-Act-Assert)
+  coverage_minimum: 80%
+  fixture_scope:
+    rules:
+      - Prefer function scope for fixtures unless sharing expensive setup is proven necessary.
+      - Use module or session scope only for idempotent, safe shared resources (e.g. temp dirs, config snapshots) documented in the test or conftest.
+      - Avoid session-scoped fixtures that mutate global state without teardown.
+      - Keep fixtures in conftest.py colocated with the test package they serve.
+  naming_convention: test_ prefix required on all test modules and functions discovered by pytest.
+################################################################################
+forbidden:
+  - pattern: print() for logging or debugging in library/application logic
+    reason: Unstructured output, hard to test and filter in CI or production.
+    alternative: Use logging with appropriate levels; in tests, use assertions or caplog.
+  - pattern: hardcoded constants scattered in business logic (magic numbers/strings)
+    reason: Obscures intent, complicates changes and testing, hides domain concepts.
+    alternative: Named module-level or class constants, enums, or configuration loaded in boundary.
+  - pattern: bare except or except Exception without re-raise or narrow handling
+    reason: Masks failures, breaks fail-fast debugging, and can hide programming errors.
+    alternative: Catch specific exceptions; use finally for cleanup; let unexpected errors propagate or wrap with context at a boundary.
+################################################################################
+file_structure: |
+  # MagicSquare/  (repository root)
+  # ├── boundary/           # I/O adapters: CLI, API, UI glue (calls control only)
+  # │   ├── __init__.py
+  # │   └── ...
+  # ├── control/            # Use cases and orchestration (uses entity)
+  # │   ├── __init__.py
+  # │   └── ...
+  # ├── entity/             # Domain models, magic-square rules (no boundary imports)
+  # │   ├── __init__.py
+  # │   └── ...
+  # ├── tests/              # Mirrors packages; pytest discovery (test_*.py)
+  # │   ├── boundary/
+  # │   ├── control/
+  # │   ├── entity/
+  # │   └── conftest.py
+  # ├── pyproject.toml / requirements ...
+  # └── .cursorrules
+################################################################################
+ai_behavior:
+  before_code_generation:
+    - Read or locate related tests under tests/ for the area being changed; prefer editing to an existing failing test when doing TDD.
+    - Skim entity/control/boundary layout so new files land in the correct package.
+    - Confirm dependency direction (boundary → control → entity) for planned imports.
+  during_code_generation:
+    - Do not introduce ECB violations (e.g. entity importing boundary, or control depending on UI types for core logic).
+    - Do not add or leave public functions without type hints on parameters and return values.
+    - Write or update tests in the same change when behavior changes; follow AAA and naming rules.
+    - If a requested change would skip the red phase, add a failing test first or state clearly that TDD order cannot be satisfied and why.
+  after_code_generation:
+    - Run or suggest running pytest for affected modules; note if coverage might drop below the minimum.
+    - Warn explicitly when a change would violate tdd_rules (e.g. production before test, refactor while red) or forbidden patterns.
+    - Summarize layer placement of new code so reviewers can verify ECB alignment.

@@ -62,17 +62,33 @@ def find_not_exist_nums(matrix: Sequence[Sequence[int]]) -> tuple[int, int]:
     return (a, b)
 
 
+def _sum_row(grid: Sequence[Sequence[int]], row: int) -> int:
+    return sum(grid[row][col] for col in range(MATRIX_SIZE))
+
+
+def _sum_col(grid: Sequence[Sequence[int]], col: int) -> int:
+    return sum(grid[row][col] for row in range(MATRIX_SIZE))
+
+
+def _sum_main_diag(grid: Sequence[Sequence[int]]) -> int:
+    return sum(grid[i][i] for i in range(MATRIX_SIZE))
+
+
+def _sum_anti_diag(grid: Sequence[Sequence[int]]) -> int:
+    return sum(grid[i][MATRIX_SIZE - 1 - i] for i in range(MATRIX_SIZE))
+
+
 def is_magic_square(grid: Sequence[Sequence[int]]) -> bool:
     """True iff every row, column, and main/anti diagonal sums to ``MAGIC_SUM_ORDER_4`` (D5)."""
     for r in range(MATRIX_SIZE):
-        if sum(grid[r][c] for c in range(MATRIX_SIZE)) != MAGIC_SUM_ORDER_4:
+        if _sum_row(grid, r) != MAGIC_SUM_ORDER_4:
             return False
     for c in range(MATRIX_SIZE):
-        if sum(grid[r][c] for r in range(MATRIX_SIZE)) != MAGIC_SUM_ORDER_4:
+        if _sum_col(grid, c) != MAGIC_SUM_ORDER_4:
             return False
-    if sum(grid[i][i] for i in range(MATRIX_SIZE)) != MAGIC_SUM_ORDER_4:
+    if _sum_main_diag(grid) != MAGIC_SUM_ORDER_4:
         return False
-    if sum(grid[i][MATRIX_SIZE - 1 - i] for i in range(MATRIX_SIZE)) != MAGIC_SUM_ORDER_4:
+    if _sum_anti_diag(grid) != MAGIC_SUM_ORDER_4:
         return False
     return True
 

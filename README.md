@@ -1,0 +1,293 @@
+# MagicSquare
+
+**4×4 magic square completion** — Python, **ECB**, **dual-track TDD**, and contract-first design. The single best onboarding anchor is **[docs/MagicSquare-4x4-Completion-System-Report.md](docs/MagicSquare-4x4-Completion-System-Report.md)** (system summary, invariants, verification targets, and links to deeper reports).
+
+---
+
+## Overview (from the system report)
+
+The system accepts a **partially filled 4×4** grid: integers **1–16** where filled, **0** for **exactly two** empty cells, no duplicate non-zeros. It **validates** input, **completes** the square when exactly one of the two placement strategies satisfies the magic property (**sum 34** on every row, column, and both main diagonals) with the full **1…16** multiset, and returns **`int[6]`** — `[r1, c1, n1, r2, c2, n2]` with **1-based** coordinates in **blank row-major order** and **`(n1, n2)`** per **D6**. Invalid boards, **unsolvable**, and **ambiguous** cases surface **named error codes** and **fixed literal messages** (see [Contracts & errors](#contracts--errors-from-report02)).
+
+Full rules, scope, and architecture tables: **[docs/MagicSquare-4x4-Completion-System-Report.md](docs/MagicSquare-4x4-Completion-System-Report.md)**.
+
+---
+
+## Epic & user stories ([Report/04](Report/04.user-journey-levels-1-5-report.md))
+
+### Epic
+
+**Build an invariant-based thinking training system**
+
+Using the **4×4 Magic Square** problem: train **invariant-centered** design thinking, **Dual-Track TDD** (domain track and contract/IO track), **clear input/output contracts** and exception policy, and **internalize** design → test → implement → refactor.
+
+### User stories (Level 3 summary)
+
+| # | Theme | I want / So that (summary) | Key acceptance criteria |
+|---|--------|----------------------------|-------------------------|
+| 1 | Input validation | Validated **4×4** input so invalid data never reaches domain | Not 4×4 → error; not exactly **2** blanks → error; duplicate non-zero → error; range violation → error |
+| 2 | Blank detection | Accurate blank **coordinates** for combination attempts | **Row-major** order; exactly **2** coordinates |
+| 3 | Missing numbers | Two missing values from **1–16** | Returned in **ascending** order |
+| 4 | Magic judgment | Single definition of “magic” | All row sums, column sums, both diagonals **equal** |
+| 5 | Two placements | Two strategies (primary + reverse) | Smaller→first blank first; on failure **reverse**; result **array length 6**; coordinates **1-indexed** |
+
+### Level 4 technical scenarios (condensed)
+
+- **Happy path:** Smaller missing value in first blank (row-major), larger in second → all sums **34**; output length **6**; **1-based** coords.
+- **Reverse placement:** Primary assignment not magic, reverse is magic → return reversed **`(n1, n2)`**; grid still sums to **34**.
+- **Failures:** Wrong blank count, duplicate non-zero, value **> 16** (or out of range) → validation error per contract.
+
+Background shared: **0** = blank; two zeros; **1…16** distinct where filled; magic constant **34** as a **named constant** in code.
+
+---
+
+## Contracts & errors (from [Report/02](Report/02.layer-design-contracts-tdd-report.md))
+
+### Input schema → violation code
+
+| Constraint | Code |
+|------------|------|
+| `matrix` non-null | `E_NULL_INPUT` |
+| Outer length 4, each row non-null length 4 | `E_WRONG_SIZE` |
+| Each cell `0` or `1 <= v <= 16` | `E_VALUE_RANGE` |
+| Exactly two cells `0` | `E_BLANK_COUNT` |
+| Non-zero values all distinct | `E_DUPLICATE_VALUE` |
+
+### Success output (`int[6]`)
+
+| Index | Field | Range |
+|-------|--------|--------|
+| 0–1 | `r1`, `c1` | 1–4 |
+| 2 | `n1` | 1–16 |
+| 3–4 | `r2`, `c2` | 1–4 |
+| 5 | `n2` | 1–16 |
+
+Coords match zero positions in **blank order D7**; `{n1, n2}` order follows **D6**.
+
+### Error codes → exact `message` (literals for tests)
+
+| `code` | `message` |
+|--------|-----------|
+| `E_NULL_INPUT` | `Input matrix is null.` |
+| `E_WRONG_SIZE` | `Matrix must be 4x4 with each row length 4.` |
+| `E_VALUE_RANGE` | `Each cell must be 0 or between 1 and 16 inclusive.` |
+| `E_BLANK_COUNT` | `Exactly two cells must be 0 (empty).` |
+| `E_DUPLICATE_VALUE` | `Values 1 through 16 must not repeat except for 0.` |
+| `E_DOMAIN_UNSOLVABLE` | `No placement of the missing numbers completes a magic square.` |
+| `E_DOMAIN_AMBIGUOUS` | `Multiple valid completions exist; input is not supported.` |
+| `E_INTERNAL` | `Unexpected error.` |
+| `E_STORAGE_CORRUPT` (optional) | `Stored data is corrupted.` |
+
+**Validation order (fixed):** null → size → value range (row-major first violation) → blank count → duplicate non-zero (row-major first duplicate).
+
+---
+
+## Execution: ECB, TDD, tooling ([Report/03](Report/03.cursorrules-configuration-report.md), [`.cursorrules`](.cursorrules), [`pyproject.toml`](pyproject.toml))
+
+| Topic | Rule |
+|--------|------|
+| **Language** | Python **3.10+** ([`pyproject.toml`](pyproject.toml), `.cursorrules`) |
+| **Layout** | `entity/` → domain; `control/` → use cases; `boundary/` → I/O; `tests/` mirrors packages (`.cursorrules` `file_structure`) |
+| **Dependencies** | `boundary → control → entity` only (no boundary imports inside entity) |
+| **TDD** | **RED → GREEN → REFACTOR** per `.cursorrules` `tdd_rules` (one small failing test first; minimal green; refactor only on green) |
+| **Tests** | **pytest**, **AAA**; `test_` prefix; coverage floor **80%** minimum in `.cursorrules` (Report/02 recommends **≥95%** on domain / **≥85%** boundary — treat as stretch goals in [Verification](#verification-criteria)) |
+| **Style** | Strict PEP 8, type hints on public APIs, Google docstrings on public methods, **Black** line length **88** |
+
+**AI / IDE:** Root [`.cursorrules`](.cursorrules) is authoritative for Cursor; [Report/03](Report/03.cursorrules-configuration-report.md) summarizes it and notes gaps (e.g. data layer vs ECB naming when persistence lands).
+
+**Commands (once packages exist):**
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+python -m pytest
+```
+
+If editable install fails before `entity/`, `control/`, and `boundary/` packages exist, install tools only: `python -m pip install pytest pytest-cov black`.
+
+---
+
+## Verification criteria (aligned with [docs/MagicSquare-4x4-Completion-System-Report.md](docs/MagicSquare-4x4-Completion-System-Report.md) & Report/04)
+
+- [ ] **Domain:** Invariants **D1–D7** enforced in **entity**; magic sum **34** as named constant; no magic numbers scattered in logic.
+- [ ] **Dual-track:** Domain tests (**T-D\***) and boundary/contract tests (**T-U\***) per Report/02; integration **T-I01–T-I05**; optional data **T-DS\***.
+- [ ] **Stories 1–5:** 4×4 + two blanks + range + duplicates; row-major blanks; missing pair; line-sum definition; primary/reverse placement and **`int[6]`** shape.
+- [ ] **Coverage:** Meet `.cursorrules` **80%** floor; drive **entity** toward Report/02 **≥95%** and **boundary ≥85%** where applicable.
+- [ ] **Regression:** Golden fixtures — solvable smaller-first, solvable reversed-only, unsolvable-but-schema-valid; frozen messages and `int[6]` field order unless contract versioned.
+
+---
+
+## Document relationships (one line each; see [Report/05](Report/05.making-pdr-report.md))
+
+| Artifact | One-line role |
+|----------|----------------|
+| [docs/PDR.md](docs/PDR.md) | Canonical **problem definition** in `docs/` with dual-track + MLOps contract scaffolding; §§1–5 align with Report/01. |
+| [Report/01.problem-definition-report.md](Report/01.problem-definition-report.md) | Authoritative **Steps 1–5** problem narrative and exclusions (no implementation design). |
+| [Report/02.layer-design-contracts-tdd-report.md](Report/02.layer-design-contracts-tdd-report.md) | **Layer design, fixed I/O, D1–D7, errors, tests, integration, traceability** — the build contract. |
+| [Report/03.cursorrules-configuration-report.md](Report/03.cursorrules-configuration-report.md) | Readable index of **`.cursorrules`**: ECB, TDD phases, pytest, forbidden patterns, file layout. |
+| [Report/04.user-journey-levels-1-5-report.md](Report/04.user-journey-levels-1-5-report.md) | **Epic → journey → stories → Level-4 scenarios → verification** wrap-up. |
+| [Report/05.making-pdr-report.md](Report/05.making-pdr-report.md) | **Meta:** how `docs/PDR.md` was defined, dual-track/MLOps fit, what changed — not a substitute for 01/02/PDR body. |
+| [docs/MagicSquare-4x4-Completion-System-Report.md](docs/MagicSquare-4x4-Completion-System-Report.md) | **Hub summary** of the completion system + pointers to 01/02/04/PDR. |
+| [Report/06.readme-and-onboarding-bootstrap-report.md](Report/06.readme-and-onboarding-bootstrap-report.md) | **Meta:** README + `pyproject.toml` bootstrap, README To-Do/traceability layout, maintenance notes — not a substitute for Report/02. |
+| `Prompting/*.md` | Elicitation prompts that produced the numbered reports. |
+
+---
+
+## Implementation To-Do (checklist, sequence thinking, traceability)
+
+**Hub:** [docs/MagicSquare-4x4-Completion-System-Report.md](docs/MagicSquare-4x4-Completion-System-Report.md). **Test IDs** **T-D\***, **T-U\***, **T-I\***, **T-DS\***: [Report/02](Report/02.layer-design-contracts-tdd-report.md).
+
+### Sequence thinking (how to execute)
+
+1. **Vertical slice order:** Finish **entity** truth (partial board → blanks → missing → magic check → placement **D6**) before relying on **control** orchestration or **boundary** mapping.
+2. **Inside each TASK:** run **RED** (one small failing test, right failure) → **GREEN** (minimal code) → **REFACTOR** (structure only; suite stays green). Do not skip RED or refactor on red (see `.cursorrules` `tdd_rules`).
+3. **Horizontal traceability:** Every TASK maps to a **requirement** (invariant **D\*** or contract), a **scenario level** (**L0** overview, **L1** happy path, **L2** boundary, **L3** failure), and a **test** name or Report/02 id — see the **matrix** below. *Task → Req → Scenario → Test* is the practice link (concept-to-code / “C2C” style).
+
+**Recommended task order (IDs):** `TASK-000` → `TASK-001`…`005` → `TASK-006`…`014` → `TASK-015`…`018` → `TASK-019`…`022` → `TASK-023`…`028`.
+
+### Epic-001 — Magic Square 4×4 completion system
+
+- [ ] **Epic-001** — Mark done when **US-002 → US-003 → US-004** domain path, **US-001 / US-005** boundary+control path, **TASK-023–025** integration, and **TASK-027** coverage gate are satisfied (**US-006** optional).
+
+**Goal:** ECB + dual-track TDD — validate/completion per **D6/D7**, errors per Report/02; optional session persistence (Report/02 §3).
+
+#### Cross-cutting (all stories)
+
+- [ ] **TASK-000** — Golden fixtures + fixture index (≥3: smaller-first, reversed-only, unsolvable-valid-schema)  
+  - [ ] **TASK-000-1** — RED: failing integration/domain test that *imports* missing fixture paths  
+  - [ ] **TASK-000-2** — GREEN: add `tests/fixtures/` + minimal matrices  
+  - [ ] **TASK-000-3** — REFACTOR: document fixture IDs beside **T-I01** / **T-D02** / **T-D03** / **T-D11**  
+  - **Checkpoint:** every golden path referenced from at least one automated test.
+
+#### US-002 — Board aggregate enforces D1–D3 (entity)
+
+- [ ] **TASK-001** — Named constant **MAGIC_SUM_ORDER_4 = 34** (`entity/magic_constants`)  
+  - [ ] **TASK-001-1** — RED: `test_MagicOrder4_constant_is_34` fails until constant exists  
+  - [ ] **TASK-001-2** — GREEN: define constant; test passes  
+  - [ ] **TASK-001-3** — REFACTOR: single import path for domain; no raw `34` in logic  
+
+- [ ] **TASK-002** — Valid `createPartialMagicSquare(matrix)`  
+  - [ ] **TASK-002-1** — RED: `test_createPartialMagicSquare_accepts_valid_two_blanks`  
+  - [ ] **TASK-002-2** — GREEN: minimal aggregate / factory  
+  - [ ] **TASK-002-3** — REFACTOR: clarify factory vs entity file layout  
+
+- [ ] **TASK-003** — Reject non-4×4 (**D1**) — `test_createPartialMagicSquare_rejects_non_4x4`  
+- [ ] **TASK-004** — Reject wrong blanks / range / duplicates (**D2**, **D3**) — `test_rejects_three_zeros`, `test_rejects_value_17`, `test_rejects_duplicate_nonzero` (see **T-D06**, **T-D08**, **T-D07**)  
+- [ ] **TASK-005** — Single validation pipeline + optional first row-major violation detail — **Checkpoint:** no **D1–D3** rules inside `boundary/`.
+
+#### US-003 — Blank order D7 + missing pair (entity)
+
+- [ ] **TASK-006** — `orderedBlankCells` row-major 1-based — **T-D04**, **T-D05**  
+- [ ] **TASK-007** — `missingTwoNumbers` → `(a,b) a<b` — **T-D12**  
+  - *Selection:* keep ordering policy in **one** module (Report/02 SRP).
+
+#### US-004 — Magic judgment D5 + completion D4/D6 (entity)
+
+- [ ] **TASK-008** — `isCompletedMagicSquare` (rows, cols, diagonals **34**)  
+  - [ ] **TASK-008-1** — RED: **T-D01** happy full grid  
+  - [ ] **TASK-008-2** — GREEN: `MagicSquareCompletenessChecker`  
+  - [ ] **TASK-008-3** — RED: **T-D09** wrong diagonal → false  
+  - [ ] **TASK-008-4** — REFACTOR: checker owns sum rules only  
+
+- [ ] **TASK-009** — Value objects `CellCoordinate`, `Placement` (regression: **T-D04**, **T-U12**)  
+- [ ] **TASK-010** — Trial completion multiset **1…16** (**D4**)  
+- [ ] **TASK-011** — `tryAssignment` both orientations — **T-D02**, **T-D03**  
+- [ ] **TASK-012** — `resolveOutputNumbers` + unsolvable / ambiguous — **T-D11**, **T-D10**  
+  - [ ] **TASK-012-1** — RED: golden chooses **(n1,n2)** per **D6**  
+  - [ ] **TASK-012-2** — GREEN: policy + neither/both failure types  
+  - [ ] **TASK-012-3** — REFACTOR: separate `SolutionOrderingPolicy` vs evaluator  
+
+- [ ] **TASK-013** — Domain façade `solveDomain` — `test_domain_solve_matches_golden_fixture`  
+- [ ] **TASK-014** — Deduplicate policy vs checker; full domain suite green  
+
+#### US-001 — End-to-end completion flow (control)
+
+- [ ] **TASK-015** — `CompleteMagicSquareUseCase` happy path — `test_CompleteMagicSquareUseCase_happy_path` (align **T-I01** logic)  
+  - [ ] **TASK-015-1** — RED: use case fails calling domain  
+  - [ ] **TASK-015-2** — GREEN: wire entity only (no real boundary)  
+  - [ ] **TASK-015-3** — REFACTOR: orchestration only; no sum/duplicate rules here  
+  - **Checkpoint:** control **never** encodes magic arithmetic.  
+
+- [ ] **TASK-016** — Map `InvalidPartialStructure` from entity — `test_use_case_maps_invalid_partial_to_domain_error`  
+- [ ] **TASK-017** — Map unsolvable / ambiguous — `test_use_case_unsolvable`, `test_use_case_ambiguous`  
+
+#### US-006 (optional) — Session persistence
+
+- [ ] **TASK-018** — After success, persist via `SessionRepository` — `test_use_case_persists_after_success`  
+
+#### US-005 — Boundary: contracts + literals (no domain rules)
+
+- [ ] **TASK-019** — Transport/schema: null, size, jagged — **T-U01**–**T-U03** (`boundary/RawMatrixAdapter` or equivalent)  
+- [ ] **TASK-020** — Map domain success → **`int[6]`** 1-based — **T-U09**, **T-U12**  
+  - [ ] **TASK-020-1** — RED: mapper test with fake domain result  
+  - [ ] **TASK-020-2** — GREEN: index order `[r1,c1,n1,r2,c2,n2]` frozen in one place  
+  - [ ] **TASK-020-3** — REFACTOR: shared layout constant for tests + production  
+
+- [ ] **TASK-021** — `ErrorMapper` literal messages — **T-U10**, **T-U11**  
+- [ ] **TASK-022** — Façade `complete(raw)` smoke — golden through stack  
+
+#### Integration, data, gates
+
+- [ ] **TASK-023** — Stack integration success — **T-I01**  
+- [ ] **TASK-024** — Stack integration input error — **T-I03**  
+- [ ] **TASK-025** — Stack integration unsolvable — **T-I04**  
+- [ ] **TASK-026** — Optional storage corrupt path — **T-I05**, **T-DS04**  
+- [ ] **TASK-027** — Coverage gate (domain **≥95%**, boundary **≥85%**, data **≥80%** per Report/02 §4.4) — **Checkpoint:** `pytest-cov` in CI or local script  
+- [ ] **TASK-028** — Refresh Report/02 §4.5 traceability table when types move  
+
+---
+
+### Requirements traceability matrix (Task → Req → Scenario → Test)
+
+Update the **Status** column as you go (e.g. ⬜ TODO, 🔴 RED, 🟢 GREEN / ✅ PASS).
+
+| Task ID | Req ID | Scenario | Test (name or Report/02 ID) | Status |
+|---------|--------|----------|-----------------------------|--------|
+| TASK-000 | D4–D7, regression | L0 | fixture files + T-I01 / T-D02 / T-D03 / T-D11 refs | ⬜ TODO |
+| TASK-001 | D5 | L1 | `test_MagicOrder4_constant_is_34` | ⬜ TODO |
+| TASK-002 | D2, D3 | L1 | `test_createPartialMagicSquare_accepts_valid_two_blanks` | ⬜ TODO |
+| TASK-003 | D1 | L3 | `test_createPartialMagicSquare_rejects_non_4x4` | ⬜ TODO |
+| TASK-004 | D2, D3 | L3 | T-D06, T-D07, T-D08 | ⬜ TODO |
+| TASK-005 | D1–D3 | L2 | validation pipeline / optional `details` | ⬜ TODO |
+| TASK-006 | D7 | L1 / L2 | T-D04, T-D05 | ⬜ TODO |
+| TASK-007 | D2 | L1 | T-D12 | ⬜ TODO |
+| TASK-008 | D5 | L1 / L3 | T-D01, T-D09 | ⬜ TODO |
+| TASK-009 | D7 | L2 | regression T-D04, T-U12 | ⬜ TODO |
+| TASK-010 | D4 | L2 | `test_trial_completion_has_sixteen_distinct_values` | ⬜ TODO |
+| TASK-011 | D6 | L1 | T-D02, T-D03 | ⬜ TODO |
+| TASK-012 | D6 | L1 / L3 | T-D10, T-D11 | ⬜ TODO |
+| TASK-013 | D4–D7 | L1 | `test_domain_solve_matches_golden_fixture` | ⬜ TODO |
+| TASK-014 | D4–D7 | L0 | full domain suite | ⬜ TODO |
+| TASK-015 | UC-D1–D5 | L1 | `test_CompleteMagicSquareUseCase_happy_path` | ⬜ TODO |
+| TASK-016 | D1–D3 | L3 | `test_use_case_maps_invalid_partial_to_domain_error` | ⬜ TODO |
+| TASK-017 | D6 | L3 | `test_use_case_unsolvable`, `test_use_case_ambiguous` | ⬜ TODO |
+| TASK-018 | persistence port | L1 | `test_use_case_persists_after_success` | ⬜ TODO |
+| TASK-019 | input schema | L3 | T-U01, T-U02, T-U03 | ⬜ TODO |
+| TASK-020 | output schema, D7 | L1 / L2 | T-U09, T-U12 | ⬜ TODO |
+| TASK-021 | error schema §2.4 | L3 | T-U10, T-U11 | ⬜ TODO |
+| TASK-022 | end-to-end façade | L0 | smoke `complete(raw)` | ⬜ TODO |
+| TASK-023 | full stack | L1 | T-I01 | ⬜ TODO |
+| TASK-024 | input schema | L3 | T-I03 | ⬜ TODO |
+| TASK-025 | D6 unsolvable | L3 | T-I04 | ⬜ TODO |
+| TASK-026 | data integrity | L3 | T-I05, T-DS04 | ⬜ TODO |
+| TASK-027 | coverage policy | L0 | `pytest-cov` thresholds | ⬜ TODO |
+| TASK-028 | meta | L0 | Report/02 §4.5 matrix | ⬜ TODO |
+
+*Traceability:* **Task → Req → Scenario → Test.** Keep this table in sync when REQ or test names change.
+
+### User story index (for backlog tools)
+
+| ID | Summary |
+|----|---------|
+| US-001 | Caller gets **`int[6]`** or **named error** (orchestration + façade). |
+| US-002 | **PartialMagicSquare** enforces **D1–D3**. |
+| US-003 | **Ordered blanks (D7)** + **missing pair** `a<b`. |
+| US-004 | **D4/D5/D6** completion and failures. |
+| US-005 | **Boundary** codes + **literal messages** (Report/02 §2.4). |
+| US-006 | Optional **session** save/load. |
+
+---
+
+## License
+
+Add a `license` / `License-File` entry in `pyproject.toml` when you publish this project.

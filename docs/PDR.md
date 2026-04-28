@@ -12,24 +12,94 @@ This file is the canonical **Problem Definition Report** in the `docs/` tree.
 | [Report/01.problem-definition-report.md](../Report/01.problem-definition-report.md) | Structured report (Steps 1–5), exclusions, and document map |
 | [Prompting/01.problem-definition-report-prompt.md](../Prompting/01.problem-definition-report-prompt.md) | Elicitation steps and Q&A that produced the report narrative |
 
-The body below matches the authoritative report in `Report/01.problem-definition-report.md`.
+The narrative in **§§1–5** aligns with the authoritative report in [Report/01.problem-definition-report.md](../Report/01.problem-definition-report.md). Sections **Reading frame** through **Scenario mapping (illustrative)** are additions to this PDR: they restate the same problem using **dual-track UI + logic** vocabulary and an **MLOps contract-surface** lens for later verification traceability. They do not change Report/01 and are not a substitute for layer design in [Report/02.layer-design-contracts-tdd-report.md](../Report/02.layer-design-contracts-tdd-report.md).
 
 ---
 
-**Scope of this document:** Problem recognition and definition only.  
-**Excluded by intent:** Implementation design, any algorithmic approach, and any discussion of how a solution would be built technically.
+**Scope of this document:** Problem recognition and definition, including **named contract surfaces** that a solution will later need to honor: observable **UX outcomes**, **logic rules** / invariants, and (when machine learning is in scope) **data and model policy** at the level of outcomes and gates—not tooling or stack choices.
+
+**Excluded by intent:** Implementation design, any algorithmic approach, and any discussion of how a solution would be built technically (frameworks, services, pipeline products).
 
 ---
 
 ## Document map
 
-| Section | Source |
-|--------|--------|
-| [1. Observation](#1-observation) | Step 1 — situation, motivation, contexts |
-| [2. Why completion matters](#2-why-completion-matters) | Step 2 — assumed rationale and structural tensions |
-| [3. Why a program versus manual calculation](#3-why-a-program-versus-manual-calculation) | Step 3 — four viewpoints |
-| [4. Why specification-first discipline](#4-why-specification-first-discipline) | Step 4 — control, invariants, clarity of boundaries |
-| [5. True problem definition](#5-true-problem-definition) | Step 5 — surface vs accurate definition, invariants, skills |
+| Section | Source (Step) | UI track | Logic track | MLOps track |
+|--------|---------------|----------|-------------|-------------|
+| [Reading frame](#reading-frame-dual-track-ui-logic-tdd-and-mlops) | PDR extension | ● | ● | ● |
+| [Cross-track mapping](#cross-track-mapping-of-sections-1-to-5) | PDR extension | ● | ● | ● |
+| [MLOps lens](#mlops-lens-problem-level-contract-surfaces) | PDR extension | ○ | ○ | ● |
+| [Scenario mapping](#scenario-mapping-illustrative) | PDR extension | ● | ● | ● |
+| [1. Observation](#1-observation) | Step 1 | ○ | ● | ○ |
+| [2. Why completion matters](#2-why-completion-matters) | Step 2 | ● | ● | ○ |
+| [3. Why a program versus manual calculation](#3-why-a-program-versus-manual-calculation) | Step 3 | ○ | ● | ○ |
+| [4. Why specification-first discipline](#4-why-specification-first-discipline) | Step 4 | ● | ● | ● |
+| [5. True problem definition](#5-true-problem-definition) | Step 5 | ● | ● | ○ |
+
+Legend: **●** = primary emphasis in that section; **○** = secondary or optional (MLOps only when ML participates).
+
+---
+
+## Reading frame: Dual-track UI, logic TDD, and MLOps
+
+**Dual-track verification (conceptual):** The problem can be read through two coupled tracks that later drive TDD:
+
+- **UI track (boundary):** What users or integrators **observe**—visibility, possibility, activation, inclusion of messaging or affordances—summarized as a **UX contract** (for example: no error before input; a named error when a named failure applies).
+- **Logic track (domain):** What must **hold** regardless of presentation—summarized as **logic rules** (allow/reject, maintain/suspend, return/block, calculate/save at the problem level).
+
+**MLOps (when machine learning is on the path):** The same “named outcomes” idea extends to **data validity**, **versioned model behavior**, **evaluation and promotion gates**, and **reproducibility** (lineage, thresholds as policy). At PDR depth this means **contract surfaces**: what “correct” must mean across retrains and deployments—not a prescription for specific MLOps products or code layout.
+
+**TDD rhythm (philosophy only):** *UI creates RED from design (UX contract); logic—and, where relevant, ML gates—creates RED from rules and evidence.* **GREEN** and **REFACTOR** are shared concerns: behavior stays checkable without collapsing boundary tests into domain tests or the reverse.
+
+### UX contract language and logic rule language
+
+Two controlled vocabularies help scenarios become **decisions** that can later become tests. Prefer items that express a **decision** or **state change**, not vague to-dos.
+
+| UX contract language (observable) | Logic rule language (decision) |
+|-----------------------------------|--------------------------------|
+| Visible / not visible | Allow / reject |
+| Possible / impossible | Maintain / suspend |
+| Activated / deactivated | Return / block |
+| Included / not included | Calculate / save |
+
+---
+
+## Cross-track mapping of sections 1 to 5
+
+| Section | Step | UI track (boundary) | Logic track (domain) | MLOps track |
+|---------|------|---------------------|----------------------|-------------|
+| §1 Observation | 1 | Contexts and outcomes stakeholders see or teach | Constrained assignment; reliable outcomes | N/A for a purely combinatorial core; “invalid batch/schema” when ML assists |
+| §2 Why completion matters | 2 | Avoid misleading partial success; clarify impossible vs many solutions | Partial vs global consistency; unsat; uniqueness | Policy when model-assisted completion is uncertain or contradicted by rules |
+| §3 Program vs manual | 3 | — | Repeatability; mechanical verification | Repeatable runs; logged eval artifacts when models exist |
+| §4 Specification-first | 4 | I/O boundaries; named failures users can see | Rules, invariants, determinism | Reproducibility; thresholds; named gate failures |
+| §5 True problem definition | 5 | Surface vs misleading “success” in the UI | Accurate definition; domain invariants | Behavior stable under declared data/model policy |
+
+---
+
+## MLOps lens (problem-level contract surfaces)
+
+When an ML component participates (for example ranking hints or parsing sketches), the problem definition should still name, **without implementation detail**:
+
+- **Data contract** — Valid inputs; what invalid or out-of-distribution means for the product story.
+- **Evidence** — What measured behavior must hold before a change is trusted, stated as **policy** (for example holdout criteria), not as ad hoc tuning steps.
+- **Lineage** — “The same problem” includes the same declared rules **and** the same declared data/model policy wherever ML affects outcomes.
+- **Failure parity** — Logic **reject** or **block** outcomes have **observable** UX counterparts; automated gate failures align with those semantics.
+
+For a **pure** deterministic magic-square artifact with **no** ML, the MLOps column is **not applicable**; the rows above keep the slot for combined products.
+
+---
+
+## Scenario mapping (illustrative)
+
+Illustrative rows connecting **scenario → UX contract → logic rule → ML / ops gate** (last column relevant only when ML or batch pipelines exist).
+
+| Scenario | UX contract | Logic rule | ML / ops gate (if ML in scope) |
+|----------|-------------|------------|--------------------------------|
+| No ruling yet before the user finishes a defined input step | Inappropriate error messaging **not visible** | No premature **reject** if partial semantics allow an intermediate state | Model-driven blocking **not** applied before required inputs/features exist |
+| Completed grid violates the agreed line-sum / distinctness rules | Named invalid or error state **visible** | Magic rule set **rejects** that candidate | Shadow or offline **eval** records disagreement with the deterministic checker |
+| Structural puzzle rule violated (for example wrong count of empty cells) | Named structural error **visible** | Completion **suspended** or input **blocked** | Schema or row validation **rejects** batch; promotion **blocked** |
+| Cell value not an allowed integer in range | Invalid styling or message **visible** | Input **blocked** at boundary | Parser **rejects**; pipeline **blocks** until fixed |
+| Correct completion under all declared rules | Success state **visible** | Valid result **returned** per policy | Optional: model agrees with checker on golden set before release |
 
 ---
 
@@ -186,13 +256,13 @@ A **small, trustworthy artifact or process** is required that realizes a **named
 
 ## Chat scope summary
 
-| Step | Focus |
-|------|--------|
-| 1 | Observational framing: constrained 4×4 assignment, why 4×4, learning and applied contexts. |
-| 2 | Why “completion” is assumed; what that assumption forces you to clarify. |
-| 3 | Why a repeatable, verifiable procedure beats informal calculation (four lenses). |
-| 4 | Why drive from checkable behavior first: control, invariants, clear I/O. |
-| 5 | Surface vs accurate definition; domain invariants; skills trained. |
+| Step | Focus | UI track | Logic track | MLOps |
+|------|--------|----------|---------------|-------|
+| 1 | Observational framing: constrained 4×4 assignment, why 4×4, learning and applied contexts. | Contexts / teachable outcomes | Assignment structure, reliability | N/A unless ML-assisted |
+| 2 | Why “completion” is assumed; what that assumption forces you to clarify. | Honest failure and ambiguity UX | Partial vs global, unsat, uniqueness | Uncertainty policy if ML assists |
+| 3 | Why a repeatable, verifiable procedure beats informal calculation (four lenses). | — | Repeatability, verification | Artifact repeatability |
+| 4 | Why drive from checkable behavior first: control, invariants, clear I/O. | Observable failures, boundaries | Rules, invariants, determinism | Gates, reproducibility |
+| 5 | Surface vs accurate definition; domain invariants; skills trained. | Misleading “success” vs clear UX | Accurate definition, invariants | Stable policy where ML applies |
 
 ---
 

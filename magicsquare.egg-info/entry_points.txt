@@ -1,0 +1,2 @@
+[console_scripts]
+magicsquare-gui = magicsquare.gui.main:run_app
